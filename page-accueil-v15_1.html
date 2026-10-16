@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Accueil</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background: #222;
+            height: 100vh;
+            height: 100dvh;   /* hauteur réellement visible sur mobile */
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;   /* contenu en bas : la photo reste bien visible */
+            padding-bottom: 7vh;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* Couche photo : séparée du body pour pouvoir la flouter */
+        #bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background: #222 url("https://i.postimg.cc/50QfZ2Kw/fond.jpg") no-repeat center center;
+            background-size: cover;
+            transition: filter 0.35s ease, transform 0.35s ease;
+            will-change: filter, transform;
+        }
+        /* Quand on écrit : la photo se floute légèrement, le reste s'estompe */
+        body.typing #bg { filter: blur(9px) brightness(0.78); transform: scale(1.08); }
+        .shortcuts, .weather-card { transition: opacity 0.3s ease; }
+        body.typing .shortcuts, body.typing .weather-card { opacity: 0.3; }
+        @media (prefers-reduced-motion: reduce) {
+            #bg, .shortcuts, .weather-card { transition: none; }
+        }
+
+        .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.1); z-index: 1; pointer-events: none; }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            width: 92%;
+            max-width: 380px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ---- Changer le fond d'écran / réglages ---- */
+        .bg-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            touch-action: manipulation;
+        }
+        .bg-btn svg { width: 20px; height: 20px; fill: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)); }
+        .bg-btn:active { opacity: 1; }
+
+        .bg-menu {
+            position: fixed;
+            top: 52px;
+            right: 12px;
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            min-width: 220px;
+            background: rgba(18, 18, 18, 0.55);
+            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+        }
+        .bg-menu.open { display: flex; animation: menuIn 0.15s ease-out; }
+        @keyframes menuIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .bg-menu button,
+        .bg-menu label {
+            display: block;
+            border: none;
+            background: transparent;
+            padding: 13px 18px;
+            font-size: 0.88rem;
+            font-family: inherit;
+            color: rgba(255, 255, 255, 0.92);
+            text-align: left;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .bg-menu > * + * { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        .bg-menu button:active,
+        .bg-menu label:active { background: rgba(255, 255, 255, 0.12); }
+
+        #bg-file {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        /* ---- Recherche IA ---- */
+        .ai-search {
+            width: 100%;
+            margin-bottom: 40px;
+        }
+
+        .search-bar {
+            background: rgba(255, 255, 255, 0.5);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            border-radius: 26px;
+            padding: 12px 20px;
+            display: flex;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        .search-bar textarea {
+            width: 100%;
+            border: none;
+            outline: none;
+            resize: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 1rem;
+            line-height: 1.4;
+            color: #000;
+            max-height: 30vh;
+            overflow-y: auto;
+        }
+
+        .ai-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .ai-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 11px 12px;
+            border: none;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.4);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .ai-btn:active { transform: scale(0.96); }
+        .ai-btn img { width: 26px; height: 26px; object-fit: contain; }
+
+        /* ---- Raccourcis (générés en JS, toujours symétriques) ---- */
+        .shortcuts {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+            width: 100%;
+        }
+
+        .row {
+            display: flex;
+            justify-content: center;
+            gap: 34px;
+            width: 100%;
+        }
+
+        .logo-link {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            filter: drop-shadow(0 3px 5px rgba(0,0,0,0.4));
+            transition: transform 0.2s;
+            opacity: 0.8;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .logo-link:active { transform: scale(0.9); }
+        .logo-link img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+        .logo-link .letter {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: #fff;
+        }
+
+        button.logo-link.add {
+            border: 2px dashed rgba(255,255,255,0.7);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 22px;
+            line-height: 1;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+
+        /* ---- Édition des favoris ---- */
+        .logo-link { position: relative; touch-action: manipulation; }
+        .logo-link .emo { font-size: 26px; line-height: 1; pointer-events: none; }
+        .logo-link img.custom { border-radius: 8px; }
+
+        .logo-link.editing { animation: wig 0.32s ease-in-out infinite alternate; touch-action: none; }
+        .logo-link.editing:nth-child(even) { animation-delay: -0.16s; }
+        @keyframes wig { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
+        .logo-link.lifted { opacity: 0.25; }
+        .logo-link.drop { outline: 2px dashed rgba(255,255,255,0.85); outline-offset: 5px; border-radius: 10px; }
+        .logo-link .del {
+            position: absolute; top: -9px; right: -9px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(20,20,20,0.85); color: #fff;
+            font-size: 14px; line-height: 20px; text-align: center;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        .logo-link.ghost {
+            position: fixed; z-index: 30; margin: 0; pointer-events: none;
+            transform: scale(1.3); opacity: 0.95; animation: none;
+        }
+
+        .editbar {
+            position: fixed; top: 10px; left: 12px; right: 60px; z-index: 10;
+            display: none; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 6px 6px 6px 14px; border-radius: 22px;
+            background: rgba(18,18,18,0.55);
+            -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+            border: 1px solid rgba(255,255,255,0.12);
+            font-size: 0.74rem; color: rgba(255,255,255,0.9);
+        }
+        .editbar.show { display: flex; }
+        .editbar button {
+            border: none; border-radius: 16px; padding: 8px 14px;
+            background: rgba(255,255,255,0.92); color: #111;
+            font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+        }
+
+        /* ---- Fenêtre d'ajout / modification ---- */
+        .modal {
+            position: fixed; inset: 0; z-index: 20; display: none;
+            align-items: flex-start; justify-content: center; padding-top: 9vh;
+            background: rgba(0,0,0,0.45);
+            -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+        }
+        .modal.open { display: flex; }
+        .sheet {
+            width: 92%; max-width: 360px; max-height: 84vh; overflow-y: auto;
+            padding: 18px 16px 14px; border-radius: 20px;
+            background: rgba(24,24,24,0.82);
+            -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+            text-align: left; color: #fff;
+        }
+        .sheet h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+        .sheet input[type=text], .sheet input[type=url] {
+            width: 100%; border: none; outline: none; border-radius: 12px;
+            background: rgba(255,255,255,0.12); color: #fff;
+            padding: 12px 14px; font-size: 16px; font-family: inherit;
+        }
+        .sheet input::placeholder { color: rgba(255,255,255,0.45); }
+        .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
+        .seg button {
+            border: none; border-radius: 12px; padding: 10px 4px;
+            background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85);
+            font-family: inherit; font-size: 0.8rem; cursor: pointer;
+        }
+        .seg button.on { background: rgba(255,255,255,0.92); color: #111; font-weight: 600; }
+        .sugg { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+        .sugg button {
+            border: none; background: rgba(255,255,255,0.08); border-radius: 10px;
+            width: 38px; height: 38px; font-size: 20px; cursor: pointer;
+        }
+        .filebtn {
+            display: block; text-align: center; padding: 12px; border-radius: 12px;
+            background: rgba(255,255,255,0.12); font-size: 0.88rem; cursor: pointer;
+        }
+        #m-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+        .m-prev-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 0.78rem; color: rgba(255,255,255,0.65); }
+        #m-prev {
+            width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+        #m-prev img { width: 32px; height: 32px; object-fit: contain; }
+        #m-prev .emo { font-size: 26px; line-height: 1; }
+        #m-prev .letter { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .m-actions { display: flex; gap: 8px; margin-top: 16px; }
+        .m-actions button {
+            flex: 1; border: none; border-radius: 14px; padding: 12px 6px;
+            font-family: inherit; font-size: 0.9rem; cursor: pointer;
+            background: rgba(255,255,255,0.12); color: #fff;
+        }
+        .m-actions #m-ok { background: rgba(255,255,255,0.92); color: #111; font-weight: 600; }
+        .m-actions #m-del { color: #ff8a8a; }
+
+        /* ---- Météo ---- */
+        .weather-card {
+            width: 100%;
+            margin-top: 50px;
+            padding: 10px 6px 12px;
+            border-radius: 22px;
+            background: rgba(0, 0, 0, 0.28);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+        }
+
+        .w-top {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 0 10px;
+        }
+        .w-side {
+            font-size: 26px;
+            line-height: 1;
+            text-decoration: none;
+        }
+        .w-side.left  { justify-self: start; }
+        .w-side.right { justify-self: end; }
+        .w-temp {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .w-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            color: #fff;
+            text-decoration: none;
+        }
+        .w-day {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            font-size: 0.72rem;
+        }
+        .w-day .d { opacity: 0.85; }
+        .w-day .e { font-size: 20px; }
+        .w-day .t { font-weight: 600; }
+        .w-day .m { opacity: 0.7; }
+
+        /* Affiché tant que la météo n'est pas chargée (ou hors connexion) */
+        .w-fallback {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            padding: 6px 0;
+        }
+        .w-fallback a { text-decoration: none; font-size: 28px; opacity: 0.85; }
+
+        @media (max-height: 700px) {
+            .ai-search { margin-bottom: 30px; }
+            .shortcuts { gap: 20px; }
+            .weather-card { margin-top: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div class="overlay"></div>
+
+<!-- Icône fond d'écran / réglages -->
+<button type="button" class="bg-btn" id="bg-btn" aria-label="Réglages"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+<div class="bg-menu" id="bg-menu">
+    <label for="bg-file">Choisir une photo</label>
+    <button type="button" id="bg-link">Coller un lien d'image</button>
+    <button type="button" id="bg-reset">Fond par défaut</button>
+    <button type="button" id="fav-edit">Modifier les favoris</button>
+    <button type="button" id="fav-reset">Réinitialiser les favoris</button>
+</div>
+<input type="file" id="bg-file" accept="image/*">
+
+<div class="editbar" id="editbar">
+    <span>Glisse pour réorganiser · touche pour modifier</span>
+    <button type="button" id="edit-done">Terminé</button>
+</div>
+
+<div class="modal" id="modal">
+    <div class="sheet">
+        <h3 id="m-title">Nouveau favori</h3>
+        <input type="url" id="m-url" placeholder="Adresse (ex : lemonde.fr)" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+        <div class="seg" id="m-seg">
+            <button type="button" data-t="auto">Logo du site</button>
+            <button type="button" data-t="emoji">Emoji</button>
+            <button type="button" data-t="img">Image</button>
+        </div>
+
+        <div id="m-emoji-wrap" style="display:none">
+            <input type="text" id="m-emoji" placeholder="Tape un emoji ou choisis-en un" maxlength="8" autocomplete="off">
+            <div class="sugg" id="m-sugg"></div>
+        </div>
+
+        <div id="m-img-wrap" style="display:none">
+            <label for="m-file" class="filebtn">Choisir une image dans la galerie</label>
+            <input type="file" id="m-file" accept="image/*">
+        </div>
+
+        <div class="m-prev-row"><div id="m-prev"></div><span>Aperçu</span></div>
+
+        <div class="m-actions">
+            <button type="button" id="m-del">Supprimer</button>
+            <button type="button" id="m-cancel">Annuler</button>
+            <button type="button" id="m-ok">OK</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="ai-search">
+        <div class="search-bar">
+            <textarea id="q" rows="1" placeholder="Poser une question..." autocomplete="off" enterkeyhint="send"></textarea>
+        </div>
+        <div class="ai-buttons">
+            <button type="button" class="ai-btn" id="btn-chatgpt" aria-label="ChatGPT">
+                <img src="https://www.google.com/s2/favicons?sz=128&domain=chatgpt.com" alt="">
+            </button>
+            <button type="button" class="ai-btn" id="btn-claude" aria-label="Claude">
+                <img src="https://www.google.com/s2/favicons?sz=128&domain=claude.ai" alt="">
+            </button>
+            <button type="button" class="ai-btn" id="btn-perplexity" aria-label="Perplexity">
+                <img src="https://www.google.com/s2/favicons?sz=128&domain=perplexity.ai" alt="">
+            </button>
+            <button type="button" class="ai-btn" id="btn-google" aria-label="Recherche Google">
+                <img src="https://www.google.com/s2/favicons?sz=128&domain=google.com" alt="">
+            </button>
+        </div>
+    </div>
+
+    <div class="shortcuts" id="shortcuts"></div>
+
+    <div class="weather-card" id="weather">
+        <div class="w-fallback">
+            <a href="https://marine.meteoconsult.fr/meteo-marine/bulletin-detaille/port-29/previsions-meteo-nice-aujourdhui">🌤️</a>
+            <a href="https://www.meteoblue.com/fr/meteo/semaine/nice_france_2990440">☁️</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ---------- Recherche ChatGPT / Claude / Perplexity / Google ---------- */
+    var input = document.getElementById('q');
+    var IS_ANDROID = /Android/i.test(navigator.userAgent);
+
+    var APPS = {
+        // pkg = application Android à ouvrir (empêche qu'une autre appli prenne le lien)
+        chatgpt:    { pkg: 'com.openai.chatgpt',   base: 'https://chatgpt.com/',            param: '?q=' },
+        claude:     { pkg: 'com.anthropic.claude', base: 'https://claude.ai/new',           param: '?q=' },
+        perplexity: { pkg: null,                   base: 'https://www.perplexity.ai/',      param: 'search?q=' },
+        google:     { pkg: null,                   base: 'https://www.google.com/search',   param: '?q=', needsText: true }
+    };
+
+    // Construit l'adresse à ouvrir
+    function buildTarget(key, text) {
+        var a = APPS[key];
+        text = (text || '').trim();
+        if (key === 'google' && !text) return 'https://www.google.com/';
+        var web = text ? a.base + a.param + encodeURIComponent(text) : a.base;
+
+        // Android : on désigne l'appli par son nom de paquet. Si elle n'est pas installée,
+        // Android retombe tout seul sur le site web (browser_fallback_url).
+        if (IS_ANDROID && a.pkg) {
+            return 'intent://' + web.replace(/^https:\/\//, '') +
+                '#Intent;scheme=https;package=' + a.pkg +
+                ';S.browser_fallback_url=' + encodeURIComponent(web) + ';end';
+        }
+        return web;
+    }
+
+    function ask(key) { window.location.href = buildTarget(key, input.value); }
+
+    function askChatGPT()    { ask('chatgpt'); }
+    function askClaude()     { ask('claude'); }
+    function askPerplexity() { ask('perplexity'); }
+    function askGoogle()     { ask('google'); }
+
+    document.getElementById('btn-chatgpt').addEventListener('click', askChatGPT);
+    document.getElementById('btn-claude').addEventListener('click', askClaude);
+    document.getElementById('btn-perplexity').addEventListener('click', askPerplexity);
+    document.getElementById('btn-google').addEventListener('click', askGoogle);
+
+    // La touche Entrée envoie vers ChatGPT (remplace par askClaude, askPerplexity ou askGoogle pour changer)
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); askChatGPT(); }
+    });
+
+    // Fond qui réagit : la photo se floute pendant la saisie
+    input.addEventListener('focus', function () { document.body.classList.add('typing'); });
+    input.addEventListener('blur',  function () { document.body.classList.remove('typing'); });
+
+    // La barre de saisie s'agrandit avec le texte (jusqu'à 30 % de l'écran, puis défilement)
+    function autoGrow() {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.3) + 'px';
+    }
+    input.addEventListener('input', autoGrow);
+    window.addEventListener('pageshow', autoGrow);
+
+    /* ---------- Favoris : icône au choix, ordre libre ---------- */
+    /* Appui long sur un logo (ou menu ⋯) = mode édition : glisse pour réordonner, touche pour modifier. */
+    var FAV_KEY = 'accueil_favoris';
+    var MAX_FAVS = 10;
+    var DEFAULT_FAVS = [
+        { u: 'https://www.rfi.fr', d: 'rfi.fr' },
+        { u: 'https://www.huffingtonpost.fr', d: 'huffingtonpost.fr' },
+        { u: 'https://www.ovhcloud.com/fr/mail/', d: 'ovh.com' },
+        { u: 'https://pro.doctolib.fr/signin', d: 'doctolib.fr' },
+        { u: 'https://m.youtube.com', d: 'youtube.com' },
+        { u: 'https://sfar.org/mes-revues/anesthesie-reanimation-anrea/', d: 'sfar.org' },
+        { u: 'https://www.amazon.fr', d: 'amazon.fr' }
+    ];
+    // Chaque favori : { u: adresse, d: domaine du logo, t: 'auto' | 'emoji' | 'img', v: emoji ou image }
+
+    function loadFavs() {
+        try {
+            var s = localStorage.getItem(FAV_KEY);
+            if (s) {
+                var a = JSON.parse(s);
+                if (Array.isArray(a)) return a;
+            }
+        } catch (e) {}
+        return DEFAULT_FAVS.slice();
+    }
+
+    var favs = loadFavs();
+    var editing = false;
+    var suppressClick = false;
+
+    function saveFavs() {
+        try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
+        catch (e) { alert("Impossible de mémoriser les favoris (stockage plein)."); }
+    }
+
+    function hostOf(u) {
+        try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+    }
+
+    function normalizeUrl(v) {
+        v = (v || '').trim();
+        if (!v) return null;
+        if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+        try {
+            var u = new URL(v);
+            if (u.hostname.indexOf('.') < 0) return null;
+            return u.href;
+        } catch (e) { return null; }
+    }
+
+    function clearSuppress() {
+        suppressClick = true;
+        setTimeout(function () { suppressClick = false; }, 500);
+    }
+
+    function vib() { try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {} }
+
+    /* ----- Icône d'un favori ----- */
+    function letterNode(d) {
+        var l = document.createElement('div');
+        l.className = 'letter';
+        l.textContent = (d && d !== '?' ? d : '?').charAt(0).toUpperCase();
+        return l;
+    }
+
+    function iconNode(f) {
+        if (f.t === 'emoji' && f.v) {
+            var sp = document.createElement('span');
+            sp.className = 'emo';
+            sp.textContent = f.v;
+            return sp;
+        }
+        if (f.t === 'img' && f.v) {
+            var im = new Image();
+            im.className = 'custom';
+            im.alt = '';
+            im.draggable = false;
+            im.src = f.v;
+            return im;
+        }
+        if (!f.d || f.d === '?') return letterNode('?');
+        var img = new Image();
+        img.alt = '';
+        img.draggable = false;
+        img.onerror = function () {
+            if (img.parentNode) img.parentNode.replaceChild(letterNode(f.d), img);
+        };
+        img.src = 'https://www.google.com/s2/favicons?sz=128&domain=' + encodeURIComponent(f.d);
+        return img;
+    }
+
+    function makeLink(f, i) {
+        var a = document.createElement('a');
+        a.className = 'logo-link' + (editing ? ' editing' : '');
+        a.href = f.u;
+        a.draggable = false;
+        a.dataset.i = i;
+        a.appendChild(iconNode(f));
+        if (editing) {
+            var x = document.createElement('span');
+            x.className = 'del';
+            x.textContent = '×';
+            a.appendChild(x);
+        }
+        return a;
+    }
+
+    function makeAdd() {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'logo-link add';
+        b.setAttribute('aria-label', 'Ajouter un favori');
+        b.textContent = '+';
+        b.addEventListener('click', function () { openEditor(-1); });
+        return b;
+    }
+
+    function renderFavs() {
+        var box = document.getElementById('shortcuts');
+        box.innerHTML = '';
+
+        var items = favs.map(makeLink);
+        if (favs.length < MAX_FAVS) items.push(makeAdd());
+
+        // Répartition symétrique : moitié / moitié (jusqu'à 4 = une seule ligne)
+        var n = items.length;
+        var first = n <= 4 ? n : Math.ceil(n / 2);
+
+        [items.slice(0, first), items.slice(first)].forEach(function (group) {
+            if (!group.length) return;
+            var row = document.createElement('div');
+            row.className = 'row';
+            group.forEach(function (el) { row.appendChild(el); });
+            box.appendChild(row);
+        });
+
+        document.getElementById('editbar').classList.toggle('show', editing);
+    }
+
+    function enterEdit() { editing = true; renderFavs(); }
+    function exitEdit()  { editing = false; renderFavs(); }
+
+    function removeFav(i) {
+        if (!favs[i]) return;
+        if (confirm('Supprimer ' + (favs[i].d || 'ce favori') + ' ?')) {
+            favs.splice(i, 1);
+            saveFavs();
+            renderFavs();
+        }
+    }
+
+    /* ----- Appui long, glisser-déposer, toucher ----- */
+    var shortcutsBox = document.getElementById('shortcuts');
+    var lpTimer = null, lpStart = null, drag = null;
+
+    shortcutsBox.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    shortcutsBox.addEventListener('click', function (e) {
+        var a = e.target.closest ? e.target.closest('.logo-link[data-i]') : null;
+        if (!a) return;
+        if (suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
+        if (editing) {
+            e.preventDefault();
+            if (e.target.closest('.del')) removeFav(+a.dataset.i);
+        }
+    }, true);
+
+    shortcutsBox.addEventListener('pointerdown', function (e) {
+        var a = e.target.closest('.logo-link[data-i]');
+        if (!a || e.target.closest('.del')) return;
+        var i = +a.dataset.i;
+
+        if (editing) {
+            drag = { i: i, el: a, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, target: null };
+            try { a.setPointerCapture(e.pointerId); } catch (err) {}
+        } else {
+            lpStart = { x: e.clientX, y: e.clientY };
+            clearTimeout(lpTimer);
+            lpTimer = setTimeout(function () {
+                lpTimer = null;
+                clearSuppress();
+                vib();
+                enterEdit();
+            }, 450);
+        }
+    });
+
+    shortcutsBox.addEventListener('pointermove', function (e) {
+        if (lpTimer && lpStart &&
+            (Math.abs(e.clientX - lpStart.x) > 10 || Math.abs(e.clientY - lpStart.y) > 10)) {
+            clearTimeout(lpTimer);
+            lpTimer = null;
+        }
+        if (!drag) return;
+
+        if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) {
+            drag.moved = true;
+            var g = drag.el.cloneNode(true);
+            g.classList.remove('editing');
+            g.classList.add('ghost');
+            g.removeAttribute('href');
+            var d = g.querySelector('.del');
+            if (d) d.remove();
+            document.body.appendChild(g);
+            drag.ghost = g;
+            drag.el.classList.add('lifted');
+            vib();
+        }
+
+        if (drag.moved) {
+            var gh = drag.ghost;
+            gh.style.left = (e.clientX - gh.offsetWidth / 2) + 'px';
+            gh.style.top  = (e.clientY - gh.offsetHeight / 2) + 'px';
+
+            var t = null;
+            shortcutsBox.querySelectorAll('.logo-link[data-i]').forEach(function (it) {
+                var r = it.getBoundingClientRect(), pad = 12;
+                var hit = e.clientX >= r.left - pad && e.clientX <= r.right + pad &&
+                          e.clientY >= r.top - pad && e.clientY <= r.bottom + pad;
+                if (hit) t = +it.dataset.i;
+                it.classList.toggle('drop', hit && +it.dataset.i !== drag.i);
+            });
+            drag.target = t;
+        }
+    });
+
+    function endPointer(e) {
+        clearTimeout(lpTimer);
+        lpTimer = null;
+        if (!drag) return;
+        var d = drag;
+        drag = null;
+        try { d.el.releasePointerCapture(e.pointerId); } catch (err) {}
+        if (d.ghost) d.ghost.remove();
+
+        if (d.moved) {
+            clearSuppress();
+            if (e.type === 'pointerup' && d.target !== null && d.target !== d.i) {
+                var item = favs.splice(d.i, 1)[0];
+                favs.splice(d.target, 0, item);
+                saveFavs();
+            }
+            renderFavs();
+        } else if (e.type === 'pointerup') {
+            openEditor(d.i);
+        }
+    }
+    shortcutsBox.addEventListener('pointerup', endPointer);
+    shortcutsBox.addEventListener('pointercancel', endPointer);
+
+    document.getElementById('edit-done').addEventListener('click', exitEdit);
+    document.getElementById('fav-edit').addEventListener('click', function () {
+        document.getElementById('bg-menu').classList.remove('open');
+        enterEdit();
+    });
+
+    /* ----- Fenêtre d'ajout / modification ----- */
+    var modal  = document.getElementById('modal');
+    var mTitle = document.getElementById('m-title');
+    var mUrl   = document.getElementById('m-url');
+    var mEmoji = document.getElementById('m-emoji');
+    var mFile  = document.getElementById('m-file');
+    var mPrev  = document.getElementById('m-prev');
+    var mDel   = document.getElementById('m-del');
+    var mIdx = -1, mType = 'auto', mImg = '', mTimer = null;
+
+    var EMOJIS = ['🔒','🛡️','📰','📧','🏥','🩺','💊','🏦','🛒','🎬','🎵','📺','✈️','🚗','🏠','📅','📝','💼','⚽','🍳','📚','🗺️','💬','☁️'];
+    var sugg = document.getElementById('m-sugg');
+    EMOJIS.forEach(function (em) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = em;
+        b.addEventListener('click', function () { mEmoji.value = em; updatePreview(); });
+        sugg.appendChild(b);
+    });
+
+    function currentDraft() {
+        var u = normalizeUrl(mUrl.value);
+        var v = mType === 'emoji' ? mEmoji.value.trim() : (mType === 'img' ? mImg : '');
+        return { u: u || '', d: hostOf(u || '') || '?', t: mType, v: v };
+    }
+
+    function updatePreview() {
+        mPrev.innerHTML = '';
+        mPrev.appendChild(iconNode(currentDraft()));
+    }
+
+    function setType(t) {
+        mType = t;
+        [].forEach.call(document.querySelectorAll('#m-seg button'), function (b) {
+            b.classList.toggle('on', b.dataset.t === t);
+        });
+        document.getElementById('m-emoji-wrap').style.display = t === 'emoji' ? 'block' : 'none';
+        document.getElementById('m-img-wrap').style.display   = t === 'img'   ? 'block' : 'none';
+        updatePreview();
+    }
+
+    function openEditor(i) {
+        mIdx = i;
+        var f = i >= 0 ? favs[i] : null;
+        mTitle.textContent = f ? 'Modifier le favori' : 'Nouveau favori';
+        mUrl.value = f ? f.u : '';
+        mEmoji.value = (f && f.t === 'emoji') ? f.v : '';
+        mImg = (f && f.t === 'img') ? f.v : '';
+        mDel.style.display = f ? 'block' : 'none';
+        setType(f && f.t ? f.t : 'auto');
+        modal.classList.add('open');
+    }
+
+    function closeModal() { modal.classList.remove('open'); }
+
+    [].forEach.call(document.querySelectorAll('#m-seg button'), function (b) {
+        b.addEventListener('click', function () { setType(b.dataset.t); });
+    });
+    mEmoji.addEventListener('input', updatePreview);
+    mUrl.addEventListener('input', function () {
+        clearTimeout(mTimer);
+        mTimer = setTimeout(updatePreview, 500);
+    });
+
+    mFile.addEventListener('change', function () {
+        var file = mFile.files && mFile.files[0];
+        if (!file) return;
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            var max = 128;
+            var ratio = Math.min(1, max / Math.max(img.width, img.height));
+            var c = document.createElement('canvas');
+            c.width  = Math.max(1, Math.round(img.width * ratio));
+            c.height = Math.max(1, Math.round(img.height * ratio));
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            mImg = c.toDataURL('image/png');
+            URL.revokeObjectURL(url);
+            updatePreview();
+        };
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            alert("Impossible de lire cette image.");
+        };
+        img.src = url;
+        mFile.value = '';
+    });
+
+    document.getElementById('m-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+    mDel.addEventListener('click', function () {
+        if (mIdx < 0) return;
+        var i = mIdx;
+        closeModal();
+        removeFav(i);
+    });
+
+    document.getElementById('m-ok').addEventListener('click', function () {
+        var u = normalizeUrl(mUrl.value);
+        if (!u) { alert("Adresse invalide."); return; }
+        var dr = currentDraft();
+        if (mType === 'emoji' && !dr.v) { alert("Choisis ou tape un emoji."); return; }
+        if (mType === 'img' && !dr.v)   { alert("Choisis une image."); return; }
+
+        var entry = { u: u, d: hostOf(u), t: mType, v: dr.v };
+        if (mIdx >= 0) {
+            var old = favs[mIdx];
+            if (old.d && normalizeUrl(old.u) === u) entry.d = old.d;
+            favs[mIdx] = entry;
+        } else {
+            if (favs.length >= MAX_FAVS) { alert("10 favoris maximum."); return; }
+            favs.push(entry);
+        }
+        saveFavs();
+        closeModal();
+        renderFavs();
+    });
+
+    renderFavs();
+
+    /* ---------- Météo 7 jours (Nice) ---------- */
+    /* Données : Open-Meteo (gratuit, sans clé). Un tap ouvre meteoblue, 🌊 ouvre meteoconsult marine. */
+    var LAT = 43.7102, LON = 7.2620;   // Nice — change ces deux valeurs pour une autre ville
+    var METEOBLUE = 'https://www.meteoblue.com/fr/meteo/semaine/nice_france_2990440';
+    var METEOCONSULT = 'https://marine.meteoconsult.fr/meteo-marine/bulletin-detaille/port-29/previsions-meteo-nice-aujourdhui';
+    var WEATHER_KEY = 'accueil_meteo';
+    var WEATHER_TTL = 30 * 60 * 1000;   // rafraîchit toutes les 30 min
+
+    function wmo(c) {
+        if (c === 0) return '☀️';
+        if (c === 1) return '🌤️';
+        if (c === 2) return '⛅';
+        if (c === 3) return '☁️';
+        if (c === 45 || c === 48) return '🌫️';
+        if (c >= 51 && c <= 57) return '🌦️';
+        if (c >= 61 && c <= 67) return '🌧️';
+        if (c >= 71 && c <= 77) return '❄️';
+        if (c >= 80 && c <= 82) return '🌧️';
+        if (c === 85 || c === 86) return '❄️';
+        if (c >= 95) return '⛈️';
+        return '🌡️';
+    }
+
+    function dayLabel(dateStr, index) {
+        if (index === 0) return 'auj';
+        var d = new Date(dateStr + 'T12:00:00');
+        return d.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');
+    }
+
+    function renderWeather(data) {
+        try {
+            var cur = data.current, day = data.daily;
+            var days = '';
+            for (var i = 0; i < day.time.length; i++) {
+                days += '<div class="w-day">' +
+                    '<span class="d">' + dayLabel(day.time[i], i) + '</span>' +
+                    '<span class="e">' + wmo(day.weather_code[i]) + '</span>' +
+                    '<span class="t">' + Math.round(day.temperature_2m_max[i]) + '°</span>' +
+                    '<span class="m">' + Math.round(day.temperature_2m_min[i]) + '°</span>' +
+                    '</div>';
+            }
+            document.getElementById('weather').innerHTML =
+                '<div class="w-top">' +
+                    '<a class="w-side left" href="' + METEOBLUE + '" aria-label="Météo semaine">' + wmo(cur.weather_code) + '</a>' +
+                    '<a class="w-temp" href="' + METEOBLUE + '">' + Math.round(cur.temperature_2m) + '°</a>' +
+                    '<a class="w-side right" href="' + METEOCONSULT + '" aria-label="Météo marine">🌊</a>' +
+                '</div>' +
+                '<a class="w-days" href="' + METEOBLUE + '">' + days + '</a>';
+        } catch (e) {}
+    }
+
+    function loadWeather() {
+        var cached = null;
+        try { cached = JSON.parse(localStorage.getItem(WEATHER_KEY)); } catch (e) {}
+        if (cached && cached.data) renderWeather(cached.data);
+        if (cached && cached.t && Date.now() - cached.t < WEATHER_TTL) return;
+
+        var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
+                  '&current=temperature_2m,weather_code' +
+                  '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
+                  '&timezone=auto&forecast_days=7';
+
+        fetch(url)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.daily || !data.current) return;
+                renderWeather(data);
+                try { localStorage.setItem(WEATHER_KEY, JSON.stringify({ t: Date.now(), data: data })); } catch (e) {}
+            })
+            .catch(function () { /* hors connexion : on garde l'affichage actuel */ });
+    }
+
+    loadWeather();
+
+    /* ---------- Fond d'écran personnalisable ---------- */
+    var DEFAULT_BG = 'https://i.postimg.cc/50QfZ2Kw/fond.jpg';
+    var STORAGE_KEY = 'accueil_fond';
+
+    var bgBtn  = document.getElementById('bg-btn');
+    var bgMenu = document.getElementById('bg-menu');
+    var bgFile = document.getElementById('bg-file');
+
+    function applyBg(src) {
+        document.getElementById('bg').style.backgroundImage = 'url("' + src + '")';
+    }
+
+    function saveBg(src) {
+        try { localStorage.setItem(STORAGE_KEY, src); }
+        catch (e) { alert("Fond appliqué, mais impossible de le mémoriser pour la prochaine fois."); }
+    }
+
+    function closeMenu() { bgMenu.classList.remove('open'); }
+
+    try {
+        var saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) applyBg(saved);
+    } catch (e) {}
+
+    bgBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        bgMenu.classList.toggle('open');
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!bgMenu.contains(e.target) && e.target !== bgBtn) closeMenu();
+    });
+
+    bgFile.addEventListener('change', function () {
+        var file = bgFile.files && bgFile.files[0];
+        if (!file) return;
+
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            var max = 1400;
+            var ratio = Math.min(1, max / Math.max(img.width, img.height));
+            var canvas = document.createElement('canvas');
+            canvas.width  = Math.round(img.width * ratio);
+            canvas.height = Math.round(img.height * ratio);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            var data = canvas.toDataURL('image/jpeg', 0.82);
+            URL.revokeObjectURL(url);
+
+            applyBg(data);
+            saveBg(data);
+            closeMenu();
+        };
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            alert("Impossible de lire cette image.");
+        };
+        img.src = url;
+        bgFile.value = '';
+    });
+
+    document.getElementById('bg-link').addEventListener('click', function () {
+        closeMenu();
+        var link = prompt("Colle le lien de l'image (https://...) :");
+        if (!link) return;
+        link = link.trim();
+        if (!/^https?:\/\//i.test(link)) {
+            alert("Le lien doit commencer par http:// ou https://");
+            return;
+        }
+        applyBg(link);
+        saveBg(link);
+    });
+
+    document.getElementById('bg-reset').addEventListener('click', function () {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        applyBg(DEFAULT_BG);
+        closeMenu();
+    });
+
+    document.getElementById('fav-reset').addEventListener('click', function () {
+        closeMenu();
+        if (confirm('Remettre les favoris d\'origine ?')) {
+            favs = DEFAULT_FAVS.slice();
+            saveFavs();
+            renderFavs();
+        }
+    });
+</script>
+
+</body>
+</html>
